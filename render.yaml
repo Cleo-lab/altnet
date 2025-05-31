@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: altnet-server
+    env: python
+    region: frankfurt  # Ближайший регион для лучшей производительности
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: PORT
+        value: 10000
+    # Настройки для WebSocket
+    autoDeploy: true
+    plan: free  # Или выберите другой план
+    # Дополнительные настройки для WebSocket
+    healthCheckPath: /ws
+    numInstances: 1
