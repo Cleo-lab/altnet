@@ -8,9 +8,9 @@ import '../models/family_circle.dart';
 class ServerService {
   static WebSocketChannel? _channel;
   static final StreamController<Message> _messageController =
-      StreamController<Message>.broadcast();
+  StreamController<Message>.broadcast();
   static final StreamController<String> _errorController =
-      StreamController<String>.broadcast();
+  StreamController<String>.broadcast();
 
   static Stream<Message> get messageStream => _messageController.stream;
   static Stream<String> get errorStream => _errorController.stream;
@@ -24,15 +24,15 @@ class ServerService {
       final uri = Uri.parse('wss://altnet-server.onrender.com');
       _channel = WebSocketChannel.connect(uri);
 
-      // Аутентификация
-      await _channel!.sink.add(json.encode({
+      // Аутентификация (без await!)
+      _channel!.sink.add(json.encode({
         'type': 'auth',
         'nickname': nickname,
         'deviceId': deviceId,
       }));
 
       _channel!.stream.listen(
-        (message) {
+            (message) {
           try {
             final decoded = json.decode(message);
             if (decoded is Map<String, dynamic>) {
@@ -83,7 +83,7 @@ class ServerService {
     }
 
     try {
-      await _channel!.sink.add(json.encode({
+      _channel!.sink.add(json.encode({
         'type': 'message',
         'text': text,
         'timestamp': DateTime.now().toIso8601String(),
@@ -100,7 +100,7 @@ class ServerService {
     }
 
     try {
-      await _channel!.sink.add(json.encode({
+      _channel!.sink.add(json.encode({
         'type': 'create_circle',
         'circle': circle.toJson(),
       }));
@@ -116,7 +116,7 @@ class ServerService {
     }
 
     try {
-      await _channel!.sink.add(json.encode({
+      _channel!.sink.add(json.encode({
         'type': 'join_circle',
         'circleId': circleId,
         'masterPassword': masterPassword,

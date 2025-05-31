@@ -4,6 +4,7 @@ import '../services/storage_service.dart';
 import '../services/notification_service.dart';
 import '../models/message.dart';
 import '../models/user.dart';
+import '../services/server_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
@@ -70,7 +71,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     if (_messageController.text.isEmpty) return;
 
     try {
@@ -78,9 +79,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _messageController.clear();
       FocusScope.of(context).unfocus();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка при отправке сообщения: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка при отправке сообщения: $e')),
+        );
+      }
     }
   }
 

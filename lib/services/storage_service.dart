@@ -3,9 +3,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class StorageService {
   static const _storage = FlutterSecureStorage();
-  static const _prefs = SharedPreferences.getInstance();
+  static late SharedPreferences _prefs;
 
-  // PIN-код
+  static Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+  }
+
+  // Ключи
   static const _pinKey = 'pin_code';
   static const _deviceIdKey = 'device_id';
   static const _nicknameKey = 'user_nickname';
@@ -39,9 +43,9 @@ class StorageService {
   static Future<Map<String, dynamic>?> getUser() async {
     final nickname = await _storage.read(key: _nicknameKey);
     final isAdminStr = await _storage.read(key: _isAdminKey);
-    
+
     if (nickname == null || isAdminStr == null) return null;
-    
+
     return {
       'nickname': nickname,
       'isAdmin': isAdminStr == 'true',
@@ -60,6 +64,6 @@ class StorageService {
   // Очистка данных при выходе
   static Future<void> clearAll() async {
     await _storage.deleteAll();
-    await _prefs.then((prefs) => prefs.clear());
+    await _prefs.clear();
   }
 }
