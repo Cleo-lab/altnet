@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'screens/mask_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/chat_screen.dart';
+import 'screens/setup_screen.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
 
@@ -39,6 +40,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const MaskScreen(),
+        '/setup': (context) => const SetupScreen(),
         '/login': (context) => const LoginScreen(),
         '/chat': (context) => const ChatScreen(),
       },

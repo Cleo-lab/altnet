@@ -16,6 +16,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _circleNameController = TextEditingController();
+  final _circleIdController = TextEditingController();
   final _masterPasswordController = TextEditingController();
   final _nicknameController = TextEditingController();
   bool _isCreatingCircle = false;
@@ -30,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkExistingUser() async {
     final user = await StorageService.getUser();
     if (user != null) {
-      // Если пользователь уже зарегистрирован, переходим к экрану чата
       Navigator.pushReplacementNamed(context, '/chat');
     }
   }
@@ -42,41 +42,51 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await StorageService.getUser();
-      if (user == null) return;
-
-      final circle = FamilyCircle(
-        name: _circleNameController.text,
-        masterPassword: _masterPasswordController.text,
-        id: const Uuid().v4(),
-        memberDeviceIds: [],
-      );
-
-      // Подключаемся к серверу
-      final isConnected = await ServerService.connect(
-        _nicknameController.text,
-        user['deviceId'] as String,
-      );
-
-      if (!isConnected) {
-        throw Exception('Не удалось подключиться к серверу');
+      var deviceId = await StorageService.getDeviceId();
+      if (deviceId == null) {
+        deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
+        await StorageService.saveDeviceId(deviceId);
       }
 
-      // Создаем семейный круг
-      await ServerService.createFamilyCircle(circle);
-      await StorageService.saveCircleId(circle.id);
+      final circleId = const Uuid().v4();
+
       await StorageService.saveUser(
         _nicknameController.text,
-        true, // isAdmin
+        true,
+      );
+      await StorageService.saveCircleId(circleId);
+
+      final isConnected = await ServerService.connect(
+        _nicknameController.text,
+        deviceId,
       );
 
-      Navigator.pushReplacementNamed(context, '/chat');
+      if (!ServerService.isOfflineMode) {
+        final circle = FamilyCircle(
+          name: _circleNameController.text,
+          masterPassword: _masterPasswordController.text,
+          id: circleId,
+          memberDeviceIds: [deviceId],
+        );
+        await ServerService.createFamilyCircle(circle);
+      }
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/chat');
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -87,37 +97,51 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await StorageService.getUser();
-      if (user == null) return;
-
-      // Подключаемся к серверу
-      final isConnected = await ServerService.connect(
-        _nicknameController.text,
-        user['deviceId'] as String,
-      );
-
-      if (!isConnected) {
-        throw Exception('Не удалось подключиться к серверу');
+      var deviceId = await StorageService.getDeviceId();
+      if (deviceId == null) {
+        deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
+        await StorageService.saveDeviceId(deviceId);
       }
-
-      // Присоединяемся к семейному кругу
-      await ServerService.joinFamilyCircle(
-        await StorageService.getCircleId() ?? '',
-        _masterPasswordController.text,
-      );
 
       await StorageService.saveUser(
         _nicknameController.text,
-        false, // isAdmin
+        false,
       );
 
-      Navigator.pushReplacementNamed(context, '/chat');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка: $e')),
+      final isConnected = await ServerService.connect(
+        _nicknameController.text,
+        deviceId,
       );
+
+      final circleId = _circleIdController.text;
+      if (circleId.isEmpty) {
+        throw Exception('Введите ID семейного круга');
+      }
+      await StorageService.saveCircleId(circleId);
+
+      if (!ServerService.isOfflineMode) {
+        await ServerService.joinFamilyCircle(
+          circleId,
+          _masterPasswordController.text,
+        );
+      }
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/chat');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -143,20 +167,36 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                TextFormField(
-                  controller: _circleNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Название семейного круга',
-                    border: OutlineInputBorder(),
+                if (_isCreatingCircle)
+                  TextFormField(
+                    controller: _circleNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Название семейного круга',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (_isCreatingCircle && (value == null || value.isEmpty)) {
+                        return 'Введите название';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Введите название';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
+                if (_isCreatingCircle) const SizedBox(height: 16),
+                if (!_isCreatingCircle)
+                  TextFormField(
+                    controller: _circleIdController,
+                    decoration: const InputDecoration(
+                      labelText: 'ID семейного круга',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (!_isCreatingCircle && (value == null || value.isEmpty)) {
+                        return 'Введите ID семейного круга';
+                      }
+                      return null;
+                    },
+                  ),
+                if (!_isCreatingCircle) const SizedBox(height: 16),
                 TextFormField(
                   controller: _masterPasswordController,
                   decoration: const InputDecoration(
@@ -193,24 +233,33 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  )
                       : Text(
-                          _isCreatingCircle ? 'Создать семейный круг' : 'Присоединиться',
-                          style: const TextStyle(fontSize: 16),
-                        ),
+                    _isCreatingCircle ? 'Создать семейный круг' : 'Присоединиться',
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: () {
-                    setState(() => _isCreatingCircle = !_isCreatingCircle);
+                    setState(() {
+                      _isCreatingCircle = !_isCreatingCircle;
+                      _formKey.currentState?.reset();
+                      _circleNameController.clear();
+                      _circleIdController.clear();
+                      _masterPasswordController.clear();
+                      _nicknameController.clear();
+                    });
                   },
                   child: Text(
-                    _isCreatingCircle ? 'Уже есть семейный круг?' : 'Создать новый семейный круг',
+                    _isCreatingCircle
+                        ? 'Уже есть семейный круг?'
+                        : 'Создать новый семейный круг',
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
@@ -235,6 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _circleNameController.dispose();
+    _circleIdController.dispose();
     _masterPasswordController.dispose();
     _nicknameController.dispose();
     super.dispose();

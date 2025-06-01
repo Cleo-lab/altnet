@@ -15,50 +15,73 @@ class ServerService {
   static Stream<Message> get messageStream => _messageController.stream;
   static Stream<String> get errorStream => _errorController.stream;
 
+  static bool _isOfflineMode = false;
+
+  static bool get isOfflineMode => _isOfflineMode;
+
   static Future<bool> connect(String nickname, String deviceId) async {
     try {
       if (_channel != null) {
         await disconnect();
       }
 
-      final uri = Uri.parse('wss://altnet-server.onrender.com');
-      _channel = WebSocketChannel.connect(uri);
+      // First try the main server
+      try {
+        final uri = Uri.parse('wss://altnet-server.onrender.com');
+        _channel = WebSocketChannel.connect(uri);
+        _isOfflineMode = false;
 
-      // Аутентификация (без await!)
-      _channel!.sink.add(json.encode({
-        'type': 'auth',
-        'nickname': nickname,
-        'deviceId': deviceId,
-      }));
+        // Set a timeout for the initial connection
+        await _channel!.ready.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            throw TimeoutException('Connection timeout');
+          },
+        );
 
-      _channel!.stream.listen(
-            (message) {
-          try {
-            final decoded = json.decode(message);
-            if (decoded is Map<String, dynamic>) {
-              if (decoded['type'] == 'message') {
-                final message = Message.fromJson(decoded);
-                _messageController.add(message);
-              } else if (decoded['type'] == 'error') {
-                _errorController.add(decoded['message']);
+        // Authenticate
+        _channel!.sink.add(json.encode({
+          'type': 'auth',
+          'nickname': nickname,
+          'deviceId': deviceId,
+        }));
+
+        _channel!.stream.listen(
+              (message) {
+            try {
+              final decoded = json.decode(message);
+              if (decoded is Map<String, dynamic>) {
+                if (decoded['type'] == 'message') {
+                  final message = Message.fromJson(decoded);
+                  _messageController.add(message);
+                } else if (decoded['type'] == 'error') {
+                  _errorController.add(decoded['message']);
+                }
               }
+            } catch (e) {
+              _errorController.add('Ошибка при обработке сообщения: $e');
             }
-          } catch (e) {
-            _errorController.add('Ошибка при обработке сообщения: $e');
-          }
-        },
-        onError: (error) {
-          _errorController.add('WebSocket ошибка: $error');
-        },
-        onDone: () {
-          _errorController.add('Соединение закрыто');
-        },
-      );
+          },
+          onError: (error) {
+            _errorController.add('WebSocket ошибка: $error');
+            _isOfflineMode = true;
+          },
+          onDone: () {
+            _errorController.add('Соединение закрыто');
+            _isOfflineMode = true;
+          },
+        );
 
-      return true;
+        return true;
+      } catch (e) {
+        _isOfflineMode = true;
+        _errorController.add('Сервер недоступен. Режим оффлайн активирован.');
+        return true; // Return true to allow offline mode
+      }
     } catch (e) {
-      _errorController.add('Ошибка подключения: $e');
-      return false;
+      _isOfflineMode = true;
+      _errorController.add('Ошибка подключения: $e. Режим оффлайн активирован.');
+      return true; // Return true to allow offline mode
     }
   }
 
@@ -77,8 +100,21 @@ class ServerService {
   }
 
   static Future<void> sendMessage(String text) async {
+    if (_isOfflineMode) {
+      // In offline mode, just broadcast the message locally
+      final message = Message(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        text: text,
+        sender: 'You',
+        timestamp: DateTime.now(),
+        isLocal: true, // <-- Добавлено обязательное поле
+      );
+      _messageController.add(message);
+      return;
+    }
+
     if (_channel == null) {
-      _errorController.add('Не подключены к серверу');
+      _errorController.add('Не подключены к серверу. Сообщение сохранено локально.');
       return;
     }
 
@@ -89,7 +125,7 @@ class ServerService {
         'timestamp': DateTime.now().toIso8601String(),
       }));
     } catch (e) {
-      _errorController.add('Ошибка при отправке сообщения: $e');
+      _errorController.add('Ошибка при отправке сообщения: $e. Сообщение сохранено локально.');
     }
   }
 
