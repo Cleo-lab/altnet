@@ -1,59 +1,47 @@
+// lib/models/message.dart
+
 class Message {
-  final String id;
-  final String text;
-  final String sender;
-  final DateTime timestamp;
-  final bool isLocal;
-  DateTime? readTime;
+  final int? id;
+  final String senderId;
+  final String recipientId;
+  final String content;
+  final DateTime sentAt;
+  final DateTime? readAt;
 
   Message({
-    required this.id,
-    required this.text,
-    required this.sender,
-    required this.timestamp,
-    required this.isLocal,
-    this.readTime,
+    this.id,
+    required this.senderId,
+    required this.recipientId,
+    required this.content,
+    required this.sentAt,
+    this.readAt,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'text': text,
-      'sender': sender,
-      'timestamp': timestamp.toIso8601String(),
-      'isLocal': isLocal,
-      'readTime': readTime?.toIso8601String(),
-    };
-  }
+  // Создание объекта из Map (например, из JSON)
+  factory Message.fromMap(Map<String, dynamic> map) => Message(
+    id: map['id'] is int
+        ? map['id']
+        : int.tryParse(map['id']?.toString() ?? ''),
+    senderId: map['senderId'] as String,
+    recipientId: map['recipientId'] as String,
+    content: map['content'] as String,
+    sentAt: DateTime.parse(map['sentAt'] as String),
+    readAt: map['readAt'] != null ? DateTime.parse(map['readAt'] as String) : null,
+  );
 
-  factory Message.fromJson(Map<String, dynamic> json) {
-    return Message(
-      id: json['id'] as String,
-      text: json['text'] as String,
-      sender: json['sender'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      isLocal: json['isLocal'] as bool,
-      readTime: json['readTime'] != null 
-          ? DateTime.parse(json['readTime'] as String)
-          : null,
-    );
-  }
+  // Чтобы исправить ошибку "fromJson" добавляем синоним
+  factory Message.fromJson(Map<String, dynamic> json) => Message.fromMap(json);
 
-  Message copyWith({
-    String? id,
-    String? text,
-    String? sender,
-    DateTime? timestamp,
-    bool? isLocal,
-    DateTime? readTime,
-  }) {
-    return Message(
-      id: id ?? this.id,
-      text: text ?? this.text,
-      sender: sender ?? this.sender,
-      timestamp: timestamp ?? this.timestamp,
-      isLocal: isLocal ?? this.isLocal,
-      readTime: readTime ?? this.readTime,
-    );
-  }
+  // Преобразование объекта в Map для JSON сериализации
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'senderId': senderId,
+    'recipientId': recipientId,
+    'content': content,
+    'sentAt': sentAt.toIso8601String(),
+    'readAt': readAt?.toIso8601String(),
+  };
+
+  // Синоним для toMap
+  Map<String, dynamic> toJson() => toMap();
 }

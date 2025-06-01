@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class StorageService {
   static const _storage = FlutterSecureStorage();
   static late SharedPreferences _prefs;
-  
+
   // Local storage keys
   static const _localMessagesKey = 'local_messages';
 
@@ -13,12 +13,12 @@ class StorageService {
   }
 
   // Ключи
-  static const _pinKey = 'pin_code';
+  static const _pinKey = 'pin_code'; // Возможно, не используется, можно удалить, если не нужен
   static const _deviceIdKey = 'device_id';
   static const _nicknameKey = 'user_nickname';
   static const _isAdminKey = 'is_admin';
   static const _circleIdKey = 'circle_id';
-  static const _masterPasswordKey = 'master_password';
+  static const _masterPasswordKey = 'master_password'; // Ключ для мастерпароля
   static const _circleNameKey = 'circle_name';
   static const _isFirstTimeKey = 'is_first_time';
   static const _lastMessageReadKey = 'last_message_read';
@@ -32,7 +32,7 @@ class StorageService {
     await _prefs.setBool(_isFirstTimeKey, false);
   }
 
-  // PIN-код
+  // PIN-код - возможно, не используем, но оставил на всякий случай
   static Future<void> savePin(String pin) async {
     await _storage.write(key: _pinKey, value: pin);
   }
@@ -50,7 +50,7 @@ class StorageService {
     return await _storage.read(key: _deviceIdKey);
   }
 
-  // Пользовательские данные
+  // Пользовательские данные (никнейм и флаг администратора)
   static Future<void> saveUser(String nickname, bool isAdmin) async {
     await _storage.write(key: _nicknameKey, value: nickname);
     await _storage.write(key: _isAdminKey, value: isAdmin.toString());
@@ -95,6 +95,7 @@ class StorageService {
     };
   }
 
+  // Проверка мастер-пароля — теперь это основной способ входа
   static Future<bool> verifyMasterPassword(String password) async {
     final storedPassword = await _storage.read(key: _masterPasswordKey);
     return storedPassword == password;
@@ -135,6 +136,7 @@ class StorageService {
     final circleInfo = await getCircleInfo();
     return circleInfo != null;
   }
+
   // Отдельное сохранение только circleId
   static Future<void> saveCircleId(String circleId) async {
     await _storage.write(key: _circleIdKey, value: circleId);

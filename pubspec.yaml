@@ -13,43 +13,39 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  
-  # UI components
+
   cupertino_icons: ^1.0.8
   provider: ^6.1.1
   flutter_secure_storage: ^9.0.0
   flutter_local_notifications: ^19.2.1
   shared_preferences: ^2.2.2
 
-  # Network
   web_socket_channel: ^2.4.0
   http: ^1.2.0
 
-  # Encryption
   encrypt: ^5.0.2
   uuid: ^4.3.3
 
-  # Date formatting
-  intl: 0.20.2
+  intl: ^0.20.2
 
-  # Logging
   logger: ^2.0.2
+
+  # 🔽 Добавлено для SQLite
+  sqflite: ^2.3.2
+  path_provider: ^2.1.2
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
-  
-  # Assets can be uncommented and added later when needed
-  # assets:
-  #   - assets/images/
-  #   - assets/icons/
-  #   - assets/fonts/
-  #
-  # fonts:
-  #   - family: YourFontFamily
-  #     fonts:
-  #       - asset: assets/fonts/your_font_file.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/changmart_logo.png"
+  remove_alpha_ios: true

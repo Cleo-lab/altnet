@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../services/storage_service.dart';
-import '../services/server_service.dart';
-import '../models/user.dart';
-import '../models/family_circle.dart';
-import 'package:uuid/uuid.dart';
+
+// This screen masquerades as a Chinese shopping app login
+// but actually is a secret family chat login using a password disguised as phone input.
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -15,278 +12,131 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _circleNameController = TextEditingController();
-  final _circleIdController = TextEditingController();
-  final _masterPasswordController = TextEditingController();
-  final _nicknameController = TextEditingController();
-  bool _isCreatingCircle = false;
-  bool _isLoading = false;
+  final _passwordController = TextEditingController();
+
+  // Regex for Chinese phone number validation starting with +86 and 11 digits after
+  final RegExp _chinaPhoneRegex = RegExp(r'^\+86\d{11}$');
 
   @override
-  void initState() {
-    super.initState();
-    _checkExistingUser();
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
   }
 
-  Future<void> _checkExistingUser() async {
-    final user = await StorageService.getUser();
-    if (user != null) {
-      Navigator.pushReplacementNamed(context, '/chat');
-    }
-  }
+  void _submit() {
+    if (_formKey.currentState!.validate()) {
+      final password = _passwordController.text;
+      // Here you would check the password and navigate to secret chat screen
+      // For demonstration, just show a success snackbar
 
-  Future<void> _createFamilyCircle() async {
-    if (_isLoading) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      var deviceId = await StorageService.getDeviceId();
-      if (deviceId == null) {
-        deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
-        await StorageService.saveDeviceId(deviceId);
-      }
-
-      final circleId = const Uuid().v4();
-
-      await StorageService.saveUser(
-        _nicknameController.text,
-        true,
-      );
-      await StorageService.saveCircleId(circleId);
-
-      final isConnected = await ServerService.connect(
-        _nicknameController.text,
-        deviceId,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('登录成功！密码：$password')), // "Login success! Password: ..."
       );
 
-      if (!ServerService.isOfflineMode) {
-        final circle = FamilyCircle(
-          name: _circleNameController.text,
-          masterPassword: _masterPasswordController.text,
-          id: circleId,
-          memberDeviceIds: [deviceId],
-        );
-        await ServerService.createFamilyCircle(circle);
-      }
-
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/chat');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _joinFamilyCircle() async {
-    if (_isLoading) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      var deviceId = await StorageService.getDeviceId();
-      if (deviceId == null) {
-        deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
-        await StorageService.saveDeviceId(deviceId);
-      }
-
-      await StorageService.saveUser(
-        _nicknameController.text,
-        false,
-      );
-
-      final isConnected = await ServerService.connect(
-        _nicknameController.text,
-        deviceId,
-      );
-
-      final circleId = _circleIdController.text;
-      if (circleId.isEmpty) {
-        throw Exception('Введите ID семейного круга');
-      }
-      await StorageService.saveCircleId(circleId);
-
-      if (!ServerService.isOfflineMode) {
-        await ServerService.joinFamilyCircle(
-          circleId,
-          _masterPasswordController.text,
-        );
-      }
-
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/chat');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      // TODO: Navigate to secret chat screen
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFF800080), // Purple background (#800080)
       body: SafeArea(
-        child: Form(
-          key: _formKey,
+        child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Spacer(),
-                const Text(
-                  'Создание или присоединение к семейному кругу',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                if (_isCreatingCircle)
-                  TextFormField(
-                    controller: _circleNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Название семейного круга',
-                      border: OutlineInputBorder(),
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Big Chinese character "家" (family)
+                  const Text(
+                    '家',
+                    style: TextStyle(
+                      fontSize: 120,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Welcome text "Welcome to ChangMart" in Chinese
+                  const Text(
+                    '欢迎来到长马特',
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Input field that looks like Chinese phone number input
+                  TextFormField(
+                    controller: _passwordController,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(color: Colors.white),
+                    cursorColor: Colors.white,
+                    decoration: InputDecoration(
+                      prefixText: '+86 ',
+                      prefixStyle: const TextStyle(color: Colors.white),
+                      hintText: '请输入手机号', // "Please enter phone number"
+                      hintStyle: TextStyle(color: Colors.white70),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white70),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      // This disguises the input as phone number input, but text is visible
+                    ),
+                    obscureText: false, // show input (password disguised as phone)
                     validator: (value) {
-                      if (_isCreatingCircle && (value == null || value.isEmpty)) {
-                        return 'Введите название';
+                      if (value == null || value.isEmpty) {
+                        return '请输入手机号'; // "Please enter phone number"
+                      }
+                      // Validate format: must start with 1 and 11 digits total after +86 prefix
+                      if (!_chinaPhoneRegex.hasMatch('+86$value')) {
+                        return '手机号格式错误，需以 +86 开头，后跟11位数字';
+                        // "Phone number format error, must start with +86 and 11 digits"
                       }
                       return null;
                     },
                   ),
-                if (_isCreatingCircle) const SizedBox(height: 16),
-                if (!_isCreatingCircle)
-                  TextFormField(
-                    controller: _circleIdController,
-                    decoration: const InputDecoration(
-                      labelText: 'ID семейного круга',
-                      border: OutlineInputBorder(),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF800080),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        '登录', // "Login"
+                        style: TextStyle(fontSize: 18),
+                      ),
                     ),
-                    validator: (value) {
-                      if (!_isCreatingCircle && (value == null || value.isEmpty)) {
-                        return 'Введите ID семейного круга';
-                      }
-                      return null;
-                    },
                   ),
-                if (!_isCreatingCircle) const SizedBox(height: 16),
-                TextFormField(
-                  controller: _masterPasswordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Мастер-пароль семейного круга',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Введите мастер-пароль';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nicknameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ваш никнейм',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Введите никнейм';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _isCreatingCircle ? _createFamilyCircle : _joinFamilyCircle,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                  const SizedBox(height: 32),
+                  // Bottom branding text in white
+                  const Text(
+                    '长马特 © 2025',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
                     ),
-                  )
-                      : Text(
-                    _isCreatingCircle ? 'Создать семейный круг' : 'Присоединиться',
-                    style: const TextStyle(fontSize: 16),
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _isCreatingCircle = !_isCreatingCircle;
-                      _formKey.currentState?.reset();
-                      _circleNameController.clear();
-                      _circleIdController.clear();
-                      _masterPasswordController.clear();
-                      _nicknameController.clear();
-                    });
-                  },
-                  child: Text(
-                    _isCreatingCircle
-                        ? 'Уже есть семейный круг?'
-                        : 'Создать новый семейный круг',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                const Spacer(),
-                const Text(
-                  'Altnet',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _circleNameController.dispose();
-    _circleIdController.dispose();
-    _masterPasswordController.dispose();
-    _nicknameController.dispose();
-    super.dispose();
   }
 }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/storage_service.dart';
-import '../services/encryption_service.dart';
-import 'dart:math';
 
 class MaskScreen extends StatefulWidget {
   const MaskScreen({Key? key}) : super(key: key);
@@ -12,22 +10,10 @@ class MaskScreen extends StatefulWidget {
 }
 
 class _MaskScreenState extends State<MaskScreen> {
-  final _phoneController = TextEditingController();
+  final _inputController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _showError = false;
-  final List<String> _chineseTexts = [
-    '欢迎来到昌马特', // Добро пожаловать в ChangMart
-    '中国最大的购物平台', // Крупнейшая платформа для покупок в Китае
-    '请输入您的手机号码', // Пожалуйста, введите номер телефона
-    '注册新账户', // Регистрация нового аккаунта
-    '登录现有账户', // Вход в существующий аккаунт
-    '仅限中国用户', // Только для пользователей из Китая
-    '验证您的身份', // Подтвердите свою личность
-    '安全购物', // Безопасные покупки
-    '快速配送', // Быстрая доставка
-    '优质服务', // Качественный сервис
-  ];
 
   @override
   void initState() {
@@ -36,6 +22,7 @@ class _MaskScreenState extends State<MaskScreen> {
     _checkFirstTime();
   }
 
+  // Set status bar style to match purple background
   void _setupStatusBar() {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -45,17 +32,25 @@ class _MaskScreenState extends State<MaskScreen> {
     );
   }
 
+  // Check if this is the first app launch to redirect to setup
   Future<void> _checkFirstTime() async {
     final isFirstTime = await StorageService.isFirstTime();
     if (isFirstTime) {
-      // Если это первый запуск, показываем экран создания семейного круга
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/setup');
       }
     }
   }
 
-  Future<void> _handleLogin() async {
+  // Validate input against Chinese phone number pattern
+  bool _validateChinesePhone(String input) {
+    // Pattern: optional +86 followed by 1 and 10 digits
+    final phoneReg = RegExp(r'^(\+86)?1\d{10}$');
+    return phoneReg.hasMatch(input);
+  }
+
+  // Handle submit button pressed
+  Future<void> _onSubmit() async {
     if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
@@ -64,24 +59,23 @@ class _MaskScreenState extends State<MaskScreen> {
       _showError = false;
     });
 
+    final enteredPassword = _inputController.text;
+
     try {
-      final input = _phoneController.text;
-      
-      // Проверяем, является ли ввод мастер-паролем
+      // Check master password (if any)
       final circleInfo = await StorageService.getCircleInfo();
-      if (circleInfo != null && input == circleInfo['masterPassword']) {
-        // Если введен мастер-пароль, переходим к настройке
+      if (circleInfo != null && enteredPassword == circleInfo['masterPassword']) {
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/setup');
         }
         return;
       }
 
-      // Проверяем PIN-код
-      final pin = await StorageService.getPin();
-      if (pin == null) {
-        // Если PIN не установлен, сохраняем его
-        await StorageService.savePin(input);
+      // Retrieve saved PIN (our "secret chat" password)
+      final savedPin = await StorageService.getPin();
+      if (savedPin == null) {
+        // First-time setup: save entered password as PIN
+        await StorageService.savePin(enteredPassword);
         await StorageService.saveUser('User', false);
         var deviceId = await StorageService.getDeviceId();
         if (deviceId == null) {
@@ -91,13 +85,13 @@ class _MaskScreenState extends State<MaskScreen> {
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/login');
         }
-      } else if (pin == input) {
-        // Валидный PIN
+      } else if (enteredPassword == savedPin) {
+        // Correct password entered: go to chat/login
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/login');
         }
       } else {
-        // Неверный PIN - показываем фейковую ошибку
+        // Wrong password — show fake error message "仅限中国用户" (Only Chinese users)
         setState(() => _showError = true);
         await Future.delayed(const Duration(seconds: 2));
         setState(() => _showError = false);
@@ -107,14 +101,8 @@ class _MaskScreenState extends State<MaskScreen> {
       await Future.delayed(const Duration(seconds: 2));
       setState(() => _showError = false);
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  String _getRandomChineseText() {
-    return _chineseTexts[Random().nextInt(_chineseTexts.length)];
   }
 
   @override
@@ -124,165 +112,115 @@ class _MaskScreenState extends State<MaskScreen> {
       body: SafeArea(
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 40),
-                  // Логотип
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      Column(
-                        children: const [
-                          Text(
-                            '家', // Семья
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 60,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '亲', // Родственники
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 60,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  // Large single character "家" (family)
+                  const Text(
+                    '家',
+                    style: TextStyle(
+                      fontSize: 100,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                  const SizedBox(height: 32),
-                  // Заголовок
-                  Text(
+
+                  const SizedBox(height: 40),
+
+                  // Welcome text
+                  const Text(
                     'Welcome to ChangMart',
                     style: TextStyle(
-                      color: Colors.white,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withOpacity(0.3),
-                          offset: const Offset(1, 1),
-                          blurRadius: 2,
+                          color: Colors.black38,
+                          offset: Offset(1, 1),
+                          blurRadius: 3,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // Случайный китайский текст
-                  Text(
-                    _getRandomChineseText(),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // Поле ввода
+
+                  const SizedBox(height: 50),
+
+                  // Input field - looks like phone input but actually password input (visible)
                   TextFormField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.number,
-                    obscureText: true,
+                    controller: _inputController,
+                    keyboardType: TextInputType.phone,
+                    obscureText: false, // show characters to user
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
-                      letterSpacing: 4,
+                      fontSize: 22,
+                      letterSpacing: 1.8,
                     ),
                     textAlign: TextAlign.center,
+                    maxLength: 13, // max length to fit +86 and 11 digits
                     decoration: InputDecoration(
-                      labelText: '手机号码', // Номер телефона
-                      labelStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                      ),
+                      labelText: '请输入您的手机号码', // Please enter your phone number
+                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                       enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: Colors.white.withOpacity(0.5),
-                        ),
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.white),
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.white),
                       ),
                       errorBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.red),
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
                       ),
                       focusedErrorBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.red),
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 8,
-                      ),
-                      errorText: _showError ? '仅限中国用户' : null, // Только для пользователей из Китая
+                      errorText: _showError ? '仅限中国用户' : null, // Only for Chinese users
+                      counterText: '',
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                     ),
-                    maxLength: 6,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return '请输入您的手机号码'; // Пожалуйста, введите номер телефона
+                        return '请输入您的手机号码'; // Please enter your phone number
                       }
-                      if (value.length < 4) {
-                        return '请输入有效的手机号码'; // Пожалуйста, введите действительный номер телефона
+                      if (!_validateChinesePhone(value)) {
+                        return '请输入有效的手机号码'; // Please enter a valid phone number
                       }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
-                  // Кнопка входа
+
+                  const SizedBox(height: 40),
+
+                  // Submit button
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
+                    onPressed: _isLoading ? null : _onSubmit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.purple,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 2,
+                      elevation: 5,
                     ),
                     child: _isLoading
                         ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
-                            ),
-                          )
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
+                      ),
+                    )
                         : const Text(
-                            '登录', // Вход
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Дополнительный китайский текст
-                  Text(
-                    '安全购物 • 快速配送 • 优质服务', // Безопасные покупки • Быстрая доставка • Качественный сервис
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 12,
+                      '登录', // Login
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -296,7 +234,7 @@ class _MaskScreenState extends State<MaskScreen> {
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _inputController.dispose();
     super.dispose();
   }
 }

@@ -52,7 +52,7 @@ class ServerService {
               final decoded = json.decode(message);
               if (decoded is Map<String, dynamic>) {
                 if (decoded['type'] == 'message') {
-                  final message = Message.fromJson(decoded);
+                  final message = Message.fromMap(decoded);
                   _messageController.add(message);
                 } else if (decoded['type'] == 'error') {
                   _errorController.add(decoded['message']);
@@ -93,9 +93,6 @@ class ServerService {
       }
     } catch (e) {
       _errorController.add('Ошибка при отключении: $e');
-    } finally {
-      _channel = null;
-      _messageController.close();
     }
   }
 
@@ -103,11 +100,12 @@ class ServerService {
     if (_isOfflineMode) {
       // In offline mode, just broadcast the message locally
       final message = Message(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        text: text,
-        sender: 'You',
-        timestamp: DateTime.now(),
-        isLocal: true, // <-- Добавлено обязательное поле
+        id: DateTime.now().millisecondsSinceEpoch,
+        senderId: 'You',
+        recipientId: 'group',
+        content: text,
+        sentAt: DateTime.now(),
+        readAt: null,
       );
       _messageController.add(message);
       return;
@@ -121,8 +119,8 @@ class ServerService {
     try {
       _channel!.sink.add(json.encode({
         'type': 'message',
-        'text': text,
-        'timestamp': DateTime.now().toIso8601String(),
+        'content': text,
+        'sentAt': DateTime.now().toIso8601String(),
       }));
     } catch (e) {
       _errorController.add('Ошибка при отправке сообщения: $e. Сообщение сохранено локально.');
