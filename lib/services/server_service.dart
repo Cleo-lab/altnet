@@ -4,6 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/message.dart';
 import '../models/user.dart';
 import '../models/family_circle.dart';
+import '../services/storage_service.dart';
 
 class ServerService {
   static WebSocketChannel? _channel;
@@ -16,10 +17,17 @@ class ServerService {
   static Stream<String> get errorStream => _errorController.stream;
 
   static bool _isOfflineMode = false;
+  static bool _isConnecting = false;
+  static Timer? _reconnectTimer;
+  static const _reconnectDelay = Duration(seconds: 5);
+  static const _connectionTimeout = Duration(seconds: 10);
 
   static bool get isOfflineMode => _isOfflineMode;
 
   static Future<bool> connect(String nickname, String deviceId) async {
+    if (_isConnecting) return false;
+    _isConnecting = true;
+
     try {
       if (_channel != null) {
         await disconnect();
@@ -33,7 +41,7 @@ class ServerService {
 
         // Set a timeout for the initial connection
         await _channel!.ready.timeout(
-          const Duration(seconds: 5),
+          _connectionTimeout,
           onTimeout: () {
             throw TimeoutException('Connection timeout');
           },
@@ -56,6 +64,9 @@ class ServerService {
                   _messageController.add(message);
                 } else if (decoded['type'] == 'error') {
                   _errorController.add(decoded['message']);
+                } else if (decoded['type'] == 'auth_success') {
+                  _isOfflineMode = false;
+                  _errorController.add('Успешное подключение к серверу');
                 }
               }
             } catch (e) {
@@ -64,28 +75,53 @@ class ServerService {
           },
           onError: (error) {
             _errorController.add('WebSocket ошибка: $error');
-            _isOfflineMode = true;
+            _handleConnectionLoss();
           },
           onDone: () {
             _errorController.add('Соединение закрыто');
-            _isOfflineMode = true;
+            _handleConnectionLoss();
           },
         );
 
         return true;
       } catch (e) {
-        _isOfflineMode = true;
-        _errorController.add('Сервер недоступен. Режим оффлайн активирован.');
+        _handleConnectionLoss();
         return true; // Return true to allow offline mode
       }
-    } catch (e) {
-      _isOfflineMode = true;
-      _errorController.add('Ошибка подключения: $e. Режим оффлайн активирован.');
-      return true; // Return true to allow offline mode
+    } finally {
+      _isConnecting = false;
     }
   }
 
+  static void _handleConnectionLoss() {
+      _isOfflineMode = true;
+    _channel = null;
+    
+    // Cancel existing reconnect timer if any
+    _reconnectTimer?.cancel();
+    
+    // Start reconnect timer
+    _reconnectTimer = Timer(_reconnectDelay, () {
+      if (_isOfflineMode) {
+        _errorController.add('Попытка переподключения...');
+        // Get stored credentials and try to reconnect
+        StorageService.getUser().then((user) {
+          if (user != null) {
+            StorageService.getDeviceId().then((deviceId) {
+              if (deviceId != null) {
+                connect(user['nickname'], deviceId);
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
   static Future<void> disconnect() async {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    
     try {
       if (_channel != null) {
         await _channel!.sink.close();

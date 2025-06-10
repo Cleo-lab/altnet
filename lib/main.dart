@@ -45,7 +45,7 @@ class MyApp extends StatelessWidget {
       // Маршруты приложения
       routes: {
         '/': (context) => const MaskScreen(),       // Экран ввода номера/пароля
-        '/setup': (context) => const SetupScreen(), // Создание семейного круга
+        '/setup': (context) => SetupScreen(), // Создание семейного круга
         '/login': (context) => const LoginScreen(), // Вход по PIN
         '/chat': (context) => const ChatScreen(),   // Семейный чат
       },
